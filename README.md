@@ -33,7 +33,7 @@ A 7 Days To Die mod for **Undead Legacy**. Eight small quality-of-life fixes for
 
 ## Installing
 
-Download the zip from [Releases](https://github.com/johnrando/ul-inventorytweaks/releases) and
+Download the zip from [Releases](https://github.com/johnrando/7dtd-ul-inventorytweaks/releases) and
 extract it into the game's `Mods/`. The mod folder is the root of the archive, so it lands as:
 
 ```
