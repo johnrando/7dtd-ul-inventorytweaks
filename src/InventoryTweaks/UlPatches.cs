@@ -42,8 +42,17 @@ namespace InventoryTweaks
 
 		internal static string NewFirstStandardSortStatus = Patches.NotRunYet;
 
+		internal static string TraderCloseStatus = Patches.NotRunYet;
+
+		internal static string ScrollButtonsStatus = Patches.NotRunYet;
+
+		internal static string ScrollTrackStatus = Patches.NotRunYet;
+
 		internal static void MarkAllSkipped(string _status)
 		{
+			ScrollButtonsStatus = _status;
+			ScrollTrackStatus = _status;
+			ScrollButtons.ButtonStatus = _status;
 			NewFirstButtonStatus = _status;
 			NewFirstSortStatus = _status;
 			NewFirstStandardSortStatus = _status;
@@ -58,6 +67,7 @@ namespace InventoryTweaks
 			HighlightStatus = _status;
 			MarkerStatus = _status;
 			ToggleCloseStatus = _status;
+			TraderCloseStatus = _status;
 		}
 
 		internal static void Install(Harmony _harmony)
@@ -65,7 +75,7 @@ namespace InventoryTweaks
 			BackpackAccess.Resolve();
 			NewItemTracker.RegisterLifecycle();
 
-			// Feature 1: every UL sort (backpack, loot container, vehicle) scrolls back to the top.
+			// Feature 1: every UL sort (backpack, loot container, vehicle) scrolls to the chosen end.
 			SortScrollStatus = Postfix(_harmony, typeof(ULM_StackSorter), "OnBtnSort",
 				typeof(SortScrollToTop), nameof(SortScrollToTop.AfterSort),
 				"sorting scrolls the list to the top");
@@ -136,6 +146,24 @@ namespace InventoryTweaks
 			NewFirstStandardSortStatus = Postfix(_harmony, typeof(XUiC_ULM_BackpackWindow), "BtnSort_OnPress",
 				typeof(NewFirst), nameof(NewFirst.AfterStandardSort),
 				"new items move to the front after the standard-controls sort");
+
+			// Feature 6: the sort at a trader needs no hook to run - the trader window opens the
+			// backpack, whose OnOpen postfix above is already ours. This is only the end of the
+			// session, so that leaving a trader and coming back sorts again while switching pages
+			// mid-trade does not. Vanilla, not UL, and it degrades to the backpack-close fallback.
+			TraderCloseStatus = Postfix(_harmony, typeof(XUiC_TraderWindowGroup), "OnClose",
+				typeof(TraderSort), nameof(TraderSort.OnTraderClosed),
+				"leaving a trader arms the next sort at a trader");
+
+			// Feature 7: scroll-to-end buttons at either end of the backpack scrollbar. The buttons
+			// go into the window XML like feature 5's; the track is shortened to make room for them
+			// after UL has laid it out, since UL hardcodes its length.
+			ScrollButtonsStatus = Patch(_harmony, typeof(XUiFromXml), "loadWindows",
+				typeof(ScrollButtons), nameof(ScrollButtons.BeforeLoadWindows),
+				"the scroll-to-end buttons are added to the backpack scrollbar", _prefix: true);
+			ScrollTrackStatus = Postfix(_harmony, typeof(ULM_StackScrollBar), "OnOpen",
+				typeof(ScrollButtons), nameof(ScrollButtons.AfterScrollBarOpen),
+				"the backpack scrollbar makes room for the scroll-to-end buttons");
 		}
 
 		/// <summary>
@@ -256,18 +284,38 @@ namespace InventoryTweaks
 
 		/// <summary>
 		/// UL's "scrollbar" is row paging: <c>page</c> picks which rows of the grid are visible.
-		/// Page 0 is the top. Returns whether anything moved.
+		/// Page 0 is the top, <c>maxPages</c> the bottom. Returns whether anything moved.
 		/// </summary>
-		internal static bool ScrollToTop(ULM_StackScrollBar _scrollBar)
+		internal static bool ScrollTo(ULM_StackScrollBar _scrollBar, bool _bottom)
 		{
-			if (_scrollBar == null || _scrollBar.page == 0)
+			if (_scrollBar == null || _scrollBar.maxPages <= 0)
 			{
 				return false;
 			}
-			_scrollBar.page = 0;
+			int target = _bottom ? _scrollBar.maxPages : 0;
+			if (_scrollBar.page == target)
+			{
+				return false;
+			}
+			_scrollBar.page = target;
 			_scrollBar.UpdateSlots();
 			_scrollBar.UpdateScrollBarPosition();
 			return true;
+		}
+
+		/// <summary>
+		/// After a sort: the top, since every sort puts its result there - or nothing while
+		/// <c>it scroll</c> is off. Returns whether anything moved.
+		/// </summary>
+		internal static bool AutoScroll(ULM_StackScrollBar _scrollBar)
+		{
+			return Settings.ScrollOn && ScrollTo(_scrollBar, _bottom: false);
+		}
+
+		/// <summary>On a real open: the end <c>it scroll</c> asks for. Returns whether anything moved.</summary>
+		internal static bool AutoScrollOnOpen(ULM_StackScrollBar _scrollBar)
+		{
+			return Settings.ScrollOn && ScrollTo(_scrollBar, Settings.ScrollBottom);
 		}
 
 		/// <summary>Forces every cell to re-evaluate its bindings next frame (cheap: 300 flags).</summary>

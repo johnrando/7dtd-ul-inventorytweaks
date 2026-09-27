@@ -65,7 +65,13 @@ namespace InventoryTweaks
 			/// <summary>Was highlighted when the inventory closed; cleared if that close turns out to be real.</summary>
 			internal bool SeenAtClose;
 
-			/// <summary>When the slot was last flagged (unscaled time); feature 5 orders by it when no sort ran.</summary>
+			/// <summary>
+			/// When stock last arrived in (or left) the slot from outside the bag, as unscaled time.
+			/// Follows the item when it moves and outlives the highlight, so it is the slot's
+			/// recency: feature 5's recency sort orders the whole bag by it, and its tiers order by
+			/// it when no sort ran. 0 for anything already in the bag at spawn. One float per slot,
+			/// so it never grows; it is not saved and starts over each game.
+			/// </summary>
 			internal float ChangedAt;
 		}
 
@@ -103,6 +109,15 @@ namespace InventoryTweaks
 		internal static float LastChange(int _slot)
 		{
 			return IsHighlighted(_slot) ? slots[_slot].ChangedAt : 0f;
+		}
+
+		/// <summary>
+		/// Unscaled time stock last arrived in the slot from outside the bag, highlighted or not;
+		/// 0 for a slot the tracker has no history for. See <c>Slot.ChangedAt</c>.
+		/// </summary>
+		internal static float Recency(int _slot)
+		{
+			return slots != null && _slot >= 0 && _slot < slots.Length ? slots[_slot].ChangedAt : 0f;
 		}
 
 		/// <summary>

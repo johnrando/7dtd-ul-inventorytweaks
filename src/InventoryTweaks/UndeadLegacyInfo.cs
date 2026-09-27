@@ -23,7 +23,7 @@ namespace InventoryTweaks
 		internal const string TestedFrom = "2.7.30";
 
 		/// <summary>Newest build tested. Bump after re-checking the UL members listed in Patches.</summary>
-		internal const string TestedTo = "2.7.30";
+		internal const string TestedTo = "2.7.36";
 
 		private static string TestedRange =>
 			TestedFrom == TestedTo ? TestedFrom : TestedFrom + " - " + TestedTo;
@@ -69,13 +69,13 @@ namespace InventoryTweaks
 			System.Version to = Parse(TestedTo);
 			if (detected != null && from != null && to != null && detected >= from && detected <= to)
 			{
-				Status = raw + " - tested";
+				Status = "Detected v" + raw + " / Tested up to v" + TestedTo;
 				Log.Out(Patches.LogPrefix + "Undead Legacy " + raw + " detected (from " + DetectedSource
 					+ "), within the tested range (" + TestedRange + ").");
 				return;
 			}
 
-			Status = raw + " - UNTESTED, only tested under " + TestedRange;
+			Status = "Detected v" + raw + " / Tested up to v" + TestedTo + " (UNTESTED)";
 			Log.Warning(Patches.LogPrefix + "Undead Legacy " + raw + " detected (from " + DetectedSource
 				+ "), but this mod has only been tested under " + TestedRange + ". It will still "
 				+ "install; each patch logs if the member it targets no longer exists, and 'it info' "

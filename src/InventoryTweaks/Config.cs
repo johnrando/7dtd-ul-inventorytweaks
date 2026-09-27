@@ -54,6 +54,11 @@ namespace InventoryTweaks
 					}
 				}
 
+				// A hand-edited file could otherwise ask for the changed tier without the new one,
+				// or for one order to be both locked and the trader's.
+				Settings.NormalizeTiers();
+				Settings.NormalizeSorts();
+
 				Status = applied + " settings loaded"
 					+ (rejected > 0 ? ", " + rejected + " line(s) ignored" : "")
 					+ " - " + filePath;
@@ -127,13 +132,15 @@ namespace InventoryTweaks
 			text.AppendLine("# comment, and a line that will not parse is ignored rather than fatal.");
 			text.AppendLine();
 			Setting(text, "enabled", OnOff(Settings.Enabled), "it on|off");
-			Setting(text, "scroll", OnOff(Settings.ScrollToTop), "it scroll");
+			Setting(text, "scroll", Settings.ScrollTo, "it scroll {off|top|bottom} - or right-click a scrollbar button");
 			Setting(text, "containers", OnOff(Settings.ScrollContainers), "it containers");
 			Setting(text, "lock", Settings.LockedSort.Length == 0 ? "none" : Settings.LockedSort,
 				"it lock {none|weight|price|group|name} - or right-click a sort button");
 			Setting(text, "autosort", OnOff(Settings.AutoSort), "it autosort");
-			Setting(text, "newfirst", OnOff(Settings.NewFirst), "it newfirst - or left-click the ! button by the sort buttons");
-			Setting(text, "changedfirst", OnOff(Settings.ChangedFirst), "it changedfirst - or right-click the ! button");
+			Setting(text, "tradersort", Settings.TraderSort.Length == 0 ? "none" : Settings.TraderSort,
+				"it tradersort {none|weight|price|group|name} - or ctrl+right-click a sort button");
+			Setting(text, "newfirst", OnOff(Settings.NewFirst), "it newfirst - or right-click the ! button by the sort buttons");
+			Setting(text, "changedfirst", OnOff(Settings.ChangedFirst), "it changedfirst - or ctrl+right-click the ! button");
 			Setting(text, "toggle", OnOff(Settings.ToggleClose), "it toggle");
 			Setting(text, "highlight", OnOff(Settings.Highlight), "it highlight");
 			Setting(text, "color", Color(Settings.HighlightColor), "it color {r,g,b,a}");
@@ -191,13 +198,15 @@ namespace InventoryTweaks
 			case "enabled":
 				return TryBool(_value, ref Settings.Enabled);
 			case "scroll":
-				return TryBool(_value, ref Settings.ScrollToTop);
+				return TryScrollTo(_value);
 			case "containers":
 				return TryBool(_value, ref Settings.ScrollContainers);
 			case "lock":
-				return TryLock(_value);
+				return TryMode(_value, out Settings.LockedSort);
 			case "autosort":
 				return TryBool(_value, ref Settings.AutoSort);
+			case "tradersort":
+				return TryMode(_value, out Settings.TraderSort);
 			case "newfirst":
 				return TryBool(_value, ref Settings.NewFirst);
 			case "changedfirst":
@@ -236,21 +245,73 @@ namespace InventoryTweaks
 			}
 		}
 
+		/// <summary>
+		/// "off", "top" or "bottom". Before v0.0.0.4 this line was on/off, so those still read: on
+		/// is the old behaviour (top) and off is off. Shared with the console command.
+		/// </summary>
+		internal static bool TryScrollTo(string _value)
+		{
+			switch (_value.ToLowerInvariant())
+			{
+			case "top":
+			case "on":
+			case "true":
+			case "yes":
+			case "1":
+				Settings.ScrollTo = "top";
+				return true;
+			case "bottom":
+				Settings.ScrollTo = "bottom";
+				return true;
+			case "off":
+			case "none":
+			case "false":
+			case "no":
+			case "0":
+				Settings.ScrollTo = "off";
+				return true;
+			default:
+				return false;
+			}
+		}
+
 		/// <summary>A sort mode name, or "none". Shared with the console command.</summary>
 		internal static bool TryLock(string _value)
 		{
-			string mode = _value.ToLowerInvariant();
-			if (mode == "none" || mode == "off" || mode.Length == 0)
-			{
-				Settings.LockedSort = "";
-				return true;
-			}
-			if (!SortModes.IsName(mode))
+			if (!TryMode(_value, out string mode))
 			{
 				return false;
 			}
-			Settings.LockedSort = mode;
+			Settings.SetLocked(mode);
 			return true;
+		}
+
+		/// <summary>The same for the trader order. Shared with the console command.</summary>
+		internal static bool TryTraderSort(string _value)
+		{
+			if (!TryMode(_value, out string mode))
+			{
+				return false;
+			}
+			Settings.SetTrader(mode);
+			return true;
+		}
+
+		/// <summary>
+		/// "none", "off" or empty for no order, otherwise one of <see cref="SortModes"/>' names.
+		/// Parses only: the two settings are written straight when the file is read, so that one
+		/// line cannot clear another before <see cref="Settings.NormalizeSorts"/> has the whole
+		/// picture, and through the setters everywhere else.
+		/// </summary>
+		private static bool TryMode(string _value, out string _mode)
+		{
+			_mode = _value.ToLowerInvariant();
+			if (_mode == "none" || _mode == "off" || _mode.Length == 0)
+			{
+				_mode = "";
+				return true;
+			}
+			return SortModes.IsName(_mode);
 		}
 
 		/// <summary>"r,g,b" or "r,g,b,a", each 0-255. Shared with the console command.</summary>
